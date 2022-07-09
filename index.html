@@ -2,6 +2,9 @@
 <html>
   <head>
     <script src="pixi.js"></script>
+    <script src="CRT.js"></script>
+    <script src="knob.js"></script>
+    <script src="button.js"></script>
     <style>
       body{
           margin-top: 0px; 
@@ -16,181 +19,96 @@
   </head>
   <body>
     <script>
-      // TODO solve out of memory
-
-      // PARAMETERS
-      range_rings = 5
-      persistency = 256
-      render_interval = 2
-      base_noise_level = 0.5
-      base_noise_density = 512
-      max_range = 10
-
-      contacts = [[7.5, 0, 8], [2.6, 90, 9], [3.6, 123, 12], [8.6, 283, 7], [4.6, 183, 4], [9.1, 150, 7], [8.6, 45, 7]]
-
       // Create the application helper and add its render target to the page
       const app = new PIXI.Application({
-        autoResize: true,
-        resolution: devicePixelRatio 
+          autoResize: true,
+          resolution: devicePixelRatio 
       });
       document.body.appendChild(app.view);
-      let returnsSprites = [];
-
-      // Render returns
-      function renderReturns(size, maxRange) {
-        const returnContainer = new PIXI.Container();
-        const returnGraphics = new PIXI.Graphics();
-        returnContainer.addChild(returnGraphics);
-        for (let i = 0; i < base_noise_density; i++)
-        {
-          let angle = Math.random() * 2 * Math.PI;
-          let R = Math.random() * maxRange
-          returnGraphics.beginFill(0xf0d997, base_noise_level * (1 + Math.random()) / 2);
-          let circle = returnGraphics.drawCircle(R * Math.cos(angle), R * Math.sin(angle), 2);
-          returnGraphics.endFill()
-        }
-
-        for (let i = 0; i < contacts.length; i++)
-        {
-          let R = maxRange * contacts[i][0] / max_range;
-          let angle = (270 + contacts[i][1]) / 180 * Math.PI;
-          let intensity = contacts[i][2];
-          let dRMax = 1.5 * intensity;
-          for (let dR = -dRMax; dR <= dRMax; dR += 1)
-          {
-            let dAngleMax = 0.03 * intensity / (0.1 + 2 * R) * maxRange;
-            for (let dAngle = -dAngleMax; dAngle <= dAngleMax; dAngle += 0.01)
-            {
-              let relativeIntensity = Math.pow((dRMax - Math.abs(dR)) / 10 * (dAngleMax - Math.abs(dAngle)) / (dAngleMax), 0.5);
-              if (relativeIntensity > 1) relativeIntensity = 1;
-              returnGraphics.lineStyle(1, 0xffce00, Math.pow(relativeIntensity, 4));
-              if (dAngle > -dAngleMax)
-              {
-                returnGraphics.lineTo((R + dR) * Math.cos(angle + dAngle), (R + dR) * Math.sin(angle + dAngle));
-              }
-              returnGraphics.moveTo((R + dR) * Math.cos(angle + dAngle), (R + dR) * Math.sin(angle + dAngle));
-            }
-
-            for (let dAngle = -dAngleMax; dAngle <= dAngleMax; dAngle += 0.01)
-            {
-              let relativeIntensity = Math.pow((dRMax - Math.abs(dR)) / 10 * (dAngleMax - Math.abs(dAngle)) / (dAngleMax), 0.5);
-              if (relativeIntensity > 1) relativeIntensity = 1;
-              returnGraphics.lineStyle(1, 0xFFFFFF, Math.pow(relativeIntensity, 18));
-              if (dAngle > -dAngleMax)
-              {
-                returnGraphics.lineTo((R + dR) * Math.cos(angle + dAngle), (R + dR) * Math.sin(angle + dAngle));
-              }
-              returnGraphics.moveTo((R + dR) * Math.cos(angle + dAngle), (R + dR) * Math.sin(angle + dAngle));
-            }
-          }
-        }
-
-        returnGraphics.drawCircle(0, 0, maxRange);
-
-        let texture = app.renderer.generateTexture(returnContainer);
-        let sprite = new PIXI.Sprite(texture);
-        sprite.anchor.set(0.5);
-        returnsSprites.push(sprite);
-        app.stage.addChild(sprite);
-        if (returnsSprites.length == persistency)
-        {
-          app.stage.removeChild(returnsSprites[0]);
-          returnsSprites.shift();
-        }
-      }
-
+      
       // Listen for window resize events
       window.addEventListener('resize', resize);
+      window.onwheel = captureWheel;
+      window.onclick = captureClick;
 
-      // Resize function window
-      function resize() {
-        size = Math.min(window.innerWidth, window.innerHeight)
-        app.renderer.resize(size, size);
-        sprite.width = size;
-        sprite.height = size;
-      }
+      // PARAMETERS
+      //range_rings = 5
+      //persistency = 256
+      //render_interval = 2
+      //base_noise_level = 0.5
+      //base_noise_density = 512
+      //max_range = 10
 
-      const CRTContainer = new PIXI.Container();
+      //contacts = [[7.5, 0, 8], [2.6, 90, 9], [3.6, 123, 12], [8.6, 283, 7], [4.6, 183, 4], [9.1, 150, 7], [8.6, 45, 7]]
+//
 
-      const background = new PIXI.Graphics();
-      CRTContainer.addChild(background)
-      
-      const rangeRings = new PIXI.Graphics();
-      CRTContainer.addChild(rangeRings);
-      app.stage.addChild(CRTContainer);
+      let crt = new CRT(app);
 
-      const textContainer = new PIXI.Container();
-      const ticks = new PIXI.Graphics();
-      textContainer.addChild(ticks);
-      
       let sprite = PIXI.Sprite.from('sonar.png');
       app.stage.addChild(sprite);
-      app.stage.addChild(textContainer);
+
+      let cursorIntesityKnob  = new RotationKnob(app, crt.setCursorIntensity.bind(crt), "knobs/cursor_intensity.png", 147 / 1024, 120 / 1024, 60 / 1024, 10, 0, 360, 180);
+      let crtIntesityKnob     = new RotationKnob(app, crt.setCrtIntensity.bind(crt), "knobs/crt_intensity.png", 145 / 1024, 251 / 1024, 60 / 1024, 10, 0, 360, 180);
+      let videoGainKnob       = new RotationKnob(app, crt.setVideoGain.bind(crt), "knobs/video_gain.png", 151 / 1024, 373 / 1024, 60 / 1024, 10, 0, 360, 180);
+      let audioGainKnob       = new RotationKnob(app, crt.setAudioGain.bind(crt), "knobs/audio_gain.png", 151 / 1024, 500 / 1024, 60 / 1024, 10, 0, 360, 180);
+      let cursorPositionKnob  = new RotationKnob(app, crt.setCursorPosition.bind(crt), "knobs/cursor_position.png", 787 / 1024, 785 / 1024, 252 / 1024, 1, -Infinity, Infinity);
+      let mtiThresholdKnob    = new PositionKnob(app, crt.setMtiThreshold.bind(crt), "knobs/position_knob.png", 811 / 1024, 507 / 1024, 130 / 1024, [-50, -20, 20, 50]);
+      let rangeScaleKnob      = new PositionKnob(app, crt.setRange.bind(crt), "knobs/position_knob.png", 202 / 1024, 854 / 1024, 130 / 1024, [-75, -45, -15, 15, 45, 75]);
+      let frequencyKnob       = new PositionKnob(app, crt.setFrequency.bind(crt), "knobs/position_knob.png", 380 / 1024, 854 / 1024, 130 / 1024, [-45, -15, 15, 45]);
+      let modeKnob            = new PositionKnob(app, crt.setMode.bind(crt), "knobs/position_knob.png", 565 / 1024, 854 / 1024, 130 / 1024, [-45, -15, 15, 45]);
       
-      let angleTexts = [];
-      for (let angle = 0; angle < 2 * Math.PI - 0.1; angle += 2 * Math.PI / 36)
-        {
-          let text = new PIXI.Text((Math.round(angle * 180 / Math.PI) / 10).toString() + "", {fontFamily : 'Arial', fontSize: 10, fill : 0xFFFFFF, align : 'center'});
-          textContainer.addChild(text);
-          text.anchor.set(0.5); 
-          angleTexts.push(text);
-        }
-  
+      let powerButton         = new StateButton(app, crt.setState.bind(crt), ["buttons/powerOFF.png", "buttons/powerON.png"], 865 / 1024, 197 / 1024, 63 / 1024, 48 / 1024);
+      
       // Listen for animate update
       let renderTimer = 0;
       app.ticker.add((delta) => {
         size = Math.min(window.innerWidth, window.innerHeight)
         renderTimer += (1 / 60) * delta;
 
-        maxRange = 422.0 / 2.0 * size / 1024.0
+        crt.update(size);
 
-        background.clear()
-        background.beginFill(0xf76f1b, 1);
-        background.drawRect(-maxRange, -maxRange, 2 * maxRange, 2 * maxRange);
-        background.endFill();
+        crt.drawBackground();
+        crt.drawAngles();
 
-        rangeRings.clear();
-        rangeRings.lineStyle(2, 0xf0d997, 1);
+        cursorIntesityKnob.update(size);
+        crtIntesityKnob.update(size);
+        videoGainKnob.update(size);
+        audioGainKnob.update(size);
+        cursorPositionKnob.update(size);
+
+        mtiThresholdKnob.update(size);
+        rangeScaleKnob.update(size); 
+        frequencyKnob.update(size);   
+        modeKnob.update(size);    
         
-        for (let i = 0; i < range_rings; i++)
-        {
-          rangeRings.drawCircle(0, 0, maxRange / range_rings * i);
-        }
-        CRTContainer.x = 452.0 / 1024.0 * size;
-        CRTContainer.y = 310.0 / 1024.0 * size;
+        powerButton.update(size);
 
-        textContainer.x = 450.0 / 1024.0 * size;
-        textContainer.y = 307 / 1024.0 * size;
-
-        rangeRings.lineStyle(1, 0xf0d997, 1);
-        let R1 = -maxRange * 1.03
-        let R2 = -maxRange * 1.0
-        let R3 = -maxRange * 1.08
-        let i = 0;
-        ticks.clear()
-        ticks.lineStyle(2, 0xFFFFFF, 1)
-        for (let angle = 0; angle < 2 * Math.PI - 0.1; angle += 2 * Math.PI / 36)
-        {
-          ticks.moveTo(-R1 * Math.sin(angle), R1 * Math.cos(angle)).lineTo(-R2 * Math.sin(angle), R2 * Math.cos(angle));
-          angleTexts[i].x = -R3 * Math.sin(angle);
-          angleTexts[i].y = R3 * Math.cos(angle);
-          i++
-        }
-
-        if (renderTimer > render_interval)
+        if (renderTimer > crt.getPingInterval())
         {
           renderTimer = 0;
-          renderReturns(size, maxRange);
         }
-        
-        for (let i = 0; i < returnsSprites.length; i++)
-        {
-          returnsSprites[i].x = CRTContainer.x;
-          returnsSprites[i].y = CRTContainer.y;
-          returnsSprites[i].alpha -= 1 / persistency;
-        }
+
+        crt.drawReturns(renderTimer);
+
+        crt.fadeReturns();
       });
+
       resize();
+
+      function resize() {
+          size = Math.min(window.innerWidth, window.innerHeight)
+          app.renderer.resize(size, size);
+          sprite.width = size;
+          sprite.height = size;
+      }
+
+      function captureWheel(event) {
+        Knob.allInstances.forEach(knob => knob.wheelEvent(event));
+      }
+
+      function captureClick(event) {
+        Button.allInstances.forEach(button => button.clickEvent(event));
+      }
     </script>
   </body>
 </html>
