@@ -18,30 +18,46 @@
     </style>
   </head>
   <body>
+    <table>
+      <tr>
+        <td>
+          <div id="canvas"></div>
+        </td>
+        <td>
+          <div class="slidecontainer">
+            <p>Contact range [yards]:</p>
+            <input id = "range" type="range" min="1" max="5000" value="2500">
+            <p>Contact azimuth [degrees]:</p>
+            <input id = "azimuth" type="range" min="0" max="360" value="45">
+            <p>Contact intensity []:</p>
+            <input id = "intensity" type="range" min="0" max="20" value="10">
+            <p>Contact depth [yards]:</p>
+            <input id = "depth" type="range" min="0" max="1000" value="200">
+            <p>Sea depth [yards]:</p>
+            <input id = "seaDepth" type="range" min="0" max="10000" value="2500">
+            <p>Layer depth [yards]:</p>
+            <input id = "layerDepth" type="range" min="0" max="200" value="0">
+            <p>Sonar depth [yards]:</p>
+            <input id = "sonarDepth" type="range" min="0" max="200" value="30">
+          </div>
+        </td>
+      </tr>
+    </table>
+
     <script>
       // Create the application helper and add its render target to the page
       const app = new PIXI.Application({
           autoResize: true,
           resolution: devicePixelRatio 
       });
-      document.body.appendChild(app.view);
+      //document.body.appendChild(app.view);
+      document.getElementById("canvas").appendChild(app.view);
       
       // Listen for window resize events
       window.addEventListener('resize', resize);
       window.onwheel = captureWheel;
       window.onclick = captureClick;
-
-      // PARAMETERS
-      //range_rings = 5
-      //persistency = 256
-      //render_interval = 2
-      //base_noise_level = 0.5
-      //base_noise_density = 512
-      //max_range = 10
-
-      //contacts = [[7.5, 0, 8], [2.6, 90, 9], [3.6, 123, 12], [8.6, 283, 7], [4.6, 183, 4], [9.1, 150, 7], [8.6, 45, 7]]
-//
-
+      
       let crt = new CRT(app);
 
       let sprite = PIXI.Sprite.from('sonar.png');
@@ -65,6 +81,11 @@
         size = Math.min(window.innerWidth, window.innerHeight)
         renderTimer += (1 / 60) * delta;
 
+        if (renderTimer > crt.getPingInterval())
+        {
+          renderTimer = 0;
+        }
+
         crt.update(size);
 
         crt.drawBackground();
@@ -83,14 +104,19 @@
         
         powerButton.update(size);
 
-        if (renderTimer > crt.getPingInterval())
-        {
-          renderTimer = 0;
-        }
+        contacts = [[ document.getElementById("range").value * 0.001, 
+                      document.getElementById("azimuth").value, 
+                      document.getElementById("intensity").value,
+                      document.getElementById("depth").value * 0.001]]
+        crt.setContacts(contacts)
 
-        crt.drawReturns(renderTimer);
+        crt.setSeaDepth(document.getElementById("seaDepth").value * 0.001);
+        crt.setSonarDepth(document.getElementById("sonarDepth").value * 0.001);
+        crt.setLayerDepth(document.getElementById("layerDepth").value * 0.001);
 
-        crt.fadeReturns();
+        crt.draw(renderTimer);
+
+        crt.fade();
       });
 
       resize();
