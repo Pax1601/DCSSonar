@@ -5,7 +5,13 @@
     <script src="CRT.js"></script>
     <script src="knob.js"></script>
     <script src="button.js"></script>
+    <script src="sevenSegment.js"></script>
     <style>
+      @font-face{
+          font-family: "7Segments";
+          src: url("7segments.woff");
+      }
+      
       body{
           margin-top: 0px; 
           margin-bottom: 0px; 
@@ -14,6 +20,7 @@
           padding: 0;
           color: black; 
           font-size: 10pt; 
+          overflow: hidden;
       }
     </style>
   </head>
@@ -56,7 +63,10 @@
       // Listen for window resize events
       window.addEventListener('resize', resize);
       window.onwheel = captureWheel;
-      window.onclick = captureClick;
+      window.onmousedown = captureClick;
+      window.onmouseup = captureRelease;
+      window.onmousemove = captureMove;
+      
       
       let crt = new CRT(app);
 
@@ -69,12 +79,18 @@
       let audioGainKnob       = new RotationKnob(app, crt.setAudioGain.bind(crt), "knobs/audio_gain.png", 151 / 1024, 500 / 1024, 60 / 1024, 10, 0, 360, 180);
       let cursorPositionKnob  = new RotationKnob(app, crt.setCursorPosition.bind(crt), "knobs/cursor_position.png", 787 / 1024, 785 / 1024, 252 / 1024, 1, -Infinity, Infinity);
       let mtiThresholdKnob    = new PositionKnob(app, crt.setMtiThreshold.bind(crt), "knobs/position_knob.png", 811 / 1024, 507 / 1024, 130 / 1024, [-50, -20, 20, 50]);
-      let rangeScaleKnob      = new PositionKnob(app, crt.setRange.bind(crt), "knobs/position_knob.png", 202 / 1024, 854 / 1024, 130 / 1024, [-75, -45, -15, 15, 45, 75]);
+      let rangeScaleKnob      = new PositionKnob(app, crt.setRange.bind(crt), "knobs/position_knob.png", 202 / 1024, 854 / 1024, 130 / 1024, [-75, -45, -15, 15, 45, 75], 2);
       let frequencyKnob       = new PositionKnob(app, crt.setFrequency.bind(crt), "knobs/position_knob.png", 380 / 1024, 854 / 1024, 130 / 1024, [-45, -15, 15, 45]);
       let modeKnob            = new PositionKnob(app, crt.setMode.bind(crt), "knobs/position_knob.png", 565 / 1024, 854 / 1024, 130 / 1024, [-45, -15, 15, 45]);
       
-      let powerButton         = new StateButton(app, crt.setState.bind(crt), ["buttons/powerOFF.png", "buttons/powerON.png"], 865 / 1024, 197 / 1024, 63 / 1024, 48 / 1024);
+      let powerButton         = new StateButton(app, crt.setState.bind(crt), ["buttons/powerOFF.png", "buttons/powerON.png"], 865 / 1024, 197 / 1024, 63 / 1024, 48 / 1024, 1);
       
+      let rangeSwitch         = new ThreeStateTemporaryButton(app, crt.setRangeSwitch.bind(crt), ["buttons/rangeSwitchCenter.png", "buttons/rangeSwitchTop.png", "buttons/rangeSwitchBottom.png"], 788 / 1024, 785 / 1024, 29 / 1024, 32 / 1024, 0);
+      
+      let bearingSevenSegment = new sevenSegment(app, 203 / 1024, 672 / 1024, 3, 14 / 1024, 25);
+      let rangeSevenSegment = new sevenSegment(app, 203 / 1024, 750 / 1024, 5, 14 / 1024, 24);
+
+
       // Listen for animate update
       let renderTimer = 0;
       app.ticker.add((delta) => {
@@ -103,20 +119,29 @@
         modeKnob.update(size);    
         
         powerButton.update(size);
+        rangeSwitch.update(size);
+
+        bearingSevenSegment.update(size);
+        rangeSevenSegment.update(size);
 
         contacts = [[ document.getElementById("range").value * 0.001, 
                       document.getElementById("azimuth").value, 
                       document.getElementById("intensity").value,
                       document.getElementById("depth").value * 0.001]]
         crt.setContacts(contacts)
-
         crt.setSeaDepth(document.getElementById("seaDepth").value * 0.001);
         crt.setSonarDepth(document.getElementById("sonarDepth").value * 0.001);
         crt.setLayerDepth(document.getElementById("layerDepth").value * 0.001);
-
         crt.draw(renderTimer);
-
         crt.fade();
+
+        let bearing = crt.getCursorPosition() * 180 / Math.PI;
+        if (bearing < 0) bearing += 360;
+        bearingSevenSegment.draw(bearing);
+
+        let range = crt.getCursorRange();
+        rangeSevenSegment.draw(range);
+        
       });
 
       resize();
@@ -132,8 +157,18 @@
         Knob.allInstances.forEach(knob => knob.wheelEvent(event));
       }
 
+      function captureMove(event) {
+        Knob.allInstances.forEach(knob => knob.moveEvent(event));
+      }
+
       function captureClick(event) {
         Button.allInstances.forEach(button => button.clickEvent(event));
+        Knob.allInstances.forEach(knob => knob.clickEvent(event));
+      }
+
+      function captureRelease(event) {
+        Button.allInstances.forEach(button => button.releaseEvent(event));
+        Knob.allInstances.forEach(knob => knob.releaseEvent(event));
       }
     </script>
   </body>

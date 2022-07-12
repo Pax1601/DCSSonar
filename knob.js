@@ -16,7 +16,12 @@ class Knob
         this.relativeY      = relativeY;
         this.relativeSize   = relativeSize;
 
-        this.sprite.rotation = initialAngle/ 180 * Math.PI;
+        this.position       = initialAngle / 180 * Math.PI;
+        this.sprite.rotation = initialAngle / 180 * Math.PI;
+
+        this.mouseStartAngle = 0;
+        this.rotating  = false;
+        this.rotationStartAngle = 0;
 
         Knob.allInstances.push(this);
     }
@@ -39,6 +44,37 @@ class Knob
             this.rotate(-Math.sign(event.deltaY));
         }
     }
+
+    clickEvent(event)
+    {
+        let x = event.x;
+        let y = event.y;
+        let distance = Math.sqrt(Math.pow(x - this.sprite.x, 2) + Math.pow(y - this.sprite.y, 2));
+        if (distance < this.sprite.width / 2)
+        {
+            this.rotating = true;
+            this.mouseStartAngle = Math.atan2(y - this.sprite.y, x - this.sprite.x);
+            this.rotationStartAngle = this.position;
+            console.log(this.rotationStartAngle)
+        }
+    }
+
+    moveEvent(event)
+    {
+        if (this.rotating)
+        {
+            let x = event.x;
+            let y = event.y;
+            let rotationAngle = Math.atan2(y - this.sprite.y, x - this.sprite.x);
+            let deltaRotation = rotationAngle - this.mouseStartAngle;
+            this.setRotation(this.rotationStartAngle + deltaRotation);
+        }
+    }
+
+    releaseEvent(event)
+    {
+        this.rotating = false;
+    }
 }
 
 class RotationKnob extends Knob
@@ -53,7 +89,14 @@ class RotationKnob extends Knob
 
     rotate(direction)
     {
-        this.sprite.rotation += direction * this.deltaRotation;
+        this.setRotation(this.sprite.rotation + direction * this.deltaRotation);
+    }
+
+    setRotation(position)
+    {
+        console.log(position)
+        this.position = position;
+        this.sprite.rotation = position;
         this.sprite.rotation = Math.max(this.minRotation, this.sprite.rotation);
         this.sprite.rotation = Math.min(this.maxRotation, this.sprite.rotation);
         if (this.minRotation != -Infinity && this.maxRotation != Infinity)
@@ -79,7 +122,12 @@ class PositionKnob extends Knob
 
     rotate(direction)
     {
-        this.position += direction;
+        this.setRotation(this.position + direction);
+    }
+
+    setRotation(position)
+    {
+        this.position = position;
         this.position = Math.max(0, this.position);
         this.position = Math.min(this.positions.length - 1, this.position);
         this.sprite.rotation = this.positions[this.position] / 180 * Math.PI;

@@ -41,14 +41,24 @@ class Button
         let top = this.sprite.y + this.sprite.height / 2;
         if (!(event.x < left || event.x > right || event.y < bottom || event.y > top ))
         {
-            this.click();
+            this.click(event);
         }
+    }
+
+    releaseEvent(event)
+    {
+        this.release();
+    }
+
+    getState()
+    {
+        return this.state;
     }
 }
 
 class StateButton extends Button
 {
-    click()
+    click(event)
     {
         this.state++;
         if (this.state == this.textures.length) 
@@ -57,6 +67,36 @@ class StateButton extends Button
         }
         this.sprite.texture = this.textures[this.state];
 
+        this.callback(this.state);
+    }
+
+    release()
+    {
+
+    }
+}
+
+class ThreeStateTemporaryButton extends Button
+{
+    click(event)
+    {
+        if (event.y < this.sprite.y)
+        {
+            this.state = 1;
+        }
+        else 
+        {
+            this.state = 2;
+        }
+        this.sprite.texture = this.textures[this.state];
+
+        this.callback(this.state);
+    }
+
+    release()
+    {
+        this.state = 0;
+        this.sprite.texture = this.textures[this.state];
         this.callback(this.state);
     }
 }
