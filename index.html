@@ -2,6 +2,7 @@
 <html>
   <head>
     <script src="pixi.js"></script>
+    <script src="https://unpkg.com/@pixi/sound/dist/pixi-sound.js"></script>
     <script src="CRT.js"></script>
     <script src="knob.js"></script>
     <script src="button.js"></script>
@@ -25,6 +26,7 @@
     </style>
   </head>
   <body>
+    <link rel="preload" href="7segments.woff" as="font" type="font/woff" crossorigin="anonymous">
     <table>
       <tr>
         <td>
@@ -67,7 +69,6 @@
       window.onmouseup = captureRelease;
       window.onmousemove = captureMove;
       
-      
       let crt = new CRT(app);
 
       let sprite = PIXI.Sprite.from('sonar.png');
@@ -90,17 +91,11 @@
       let bearingSevenSegment = new sevenSegment(app, 203 / 1024, 672 / 1024, 3, 14 / 1024, 25);
       let rangeSevenSegment = new sevenSegment(app, 203 / 1024, 750 / 1024, 5, 14 / 1024, 24);
 
-
       // Listen for animate update
       let renderTimer = 0;
       app.ticker.add((delta) => {
         size = Math.min(window.innerWidth, window.innerHeight)
         renderTimer += (1 / 60) * delta;
-
-        if (renderTimer > crt.getPingInterval())
-        {
-          renderTimer = 0;
-        }
 
         crt.update(size);
 
@@ -132,15 +127,15 @@
         crt.setSeaDepth(document.getElementById("seaDepth").value * 0.001);
         crt.setSonarDepth(document.getElementById("sonarDepth").value * 0.001);
         crt.setLayerDepth(document.getElementById("layerDepth").value * 0.001);
-        crt.draw(renderTimer);
+        crt.draw((1 / 60) * delta);
         crt.fade();
 
         let bearing = crt.getCursorPosition() * 180 / Math.PI;
         if (bearing < 0) bearing += 360;
-        bearingSevenSegment.draw(bearing);
+        //bearingSevenSegment.draw(bearing);
 
         let range = crt.getCursorRange();
-        rangeSevenSegment.draw(range);
+        //rangeSevenSegment.draw(range);
         
       });
 

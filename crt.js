@@ -1,53 +1,56 @@
-function randomNormals(rng)
+function randomNormal(R, avg, sigma)
 {
-    let u1 = 0, u2 = 0;
-    //Convert [0,1) to (0,1)
-    while (u1 === 0) u1 = rng();
-    while (u2 === 0) u2 = rng();
-    const R = Math.sqrt(-2.0 * Math.log(u1));
-    const sigma = 2.0 * Math.PI * u2;
-    return [R * Math.cos(sigma), R * Math.sin(sigma)];
+    return Math.exp(-Math.pow(R - avg, 2) / (2 * sigma)) * 1 / (sigma * Math.sqrt(2 * Math.PI))
 };
 
-function randomSkewNormal(rng, eps, omega, a = 0) 
-{
-    const [u0, v] = randomNormals(rng);
-    if (a === 0) {
-        return eps + omega * u0;
-    }
-    const delta = a / Math.sqrt(1 + a * a);
-    const u1 = delta * u0 + Math.sqrt(1 - delta * delta) * v;
-    const z = u0 >= 0 ? u1 : -u1;
-    return eps + omega * z;
-};
 
 class CRTFadeRenderer
 {
     constructor(persistency)
     {
         this.persistency = persistency;
-        this.sprites = [];
         this.textures = [];
+        this.sprites = [];
+        for (var i = 0; i < this.persistency; i++)
+        {
+            this.textures.push(PIXI.RenderTexture.create(800, 800));
+            this.sprites.push(new PIXI.Sprite(this.textures[i]));
+            this.sprites[i].anchor.set(0.5);
+            app.stage.addChild(this.sprites[i]);
+        } 
+
+        this.container = new PIXI.Container();
+
+        this.blurFilter = new PIXI.filters.BlurFilter();
+        this.blurFilter.blur = 4;
+
+        this.sharpGraphics = new PIXI.Graphics();
+        this.sharpGraphics.x = 400;
+        this.sharpGraphics.y = 400;
+        this.blurGraphics = new PIXI.Graphics();
+        this.blurGraphics.x = 400;
+        this.blurGraphics.y = 400;
+        this.blurGraphics.filters = [this.blurFilter];
+
+        this.container.addChild(this.sharpGraphics);
+        this.container.addChild(this.blurGraphics);
     }
 
-    render(container)
+    getSharpGraphics() {return this.sharpGraphics;}
+    getBlurGraphics() {return this.blurGraphics;}
+
+    clear()
     {
-        let texture = app.renderer.generateTexture(container);
-        let sprite = new PIXI.Sprite(texture);
-        sprite.anchor.set(0.5);
-        this.sprites.push(sprite);
-        this.textures.push(texture);
-        app.stage.addChild(sprite);
-        if (this.sprites.length == this.persistency)
-        {
-            app.stage.removeChild(this.sprites[0]);
-            this.sprites[0] = null;
-            this.sprites.shift();
-            this.textures[0].destroy();
-            this.textures[0] = null;
-            this.textures.shift();
-            
-        }
+        this.sharpGraphics.clear();
+        this.blurGraphics.clear();
+    }
+
+    render()
+    {
+        this.textures.unshift(this.textures.pop());
+        this.sprites.unshift(this.sprites.pop());
+        this.sprites[0].alpha = 1;
+        app.renderer.render(this.container, this.textures[0]);
     }
 
     update(x, y)
@@ -63,7 +66,7 @@ class CRTFadeRenderer
     {
         for (let i = 0; i < this.sprites.length; i++)
         {
-            this.sprites[i].alpha = (1 - 3 * 1 / this.persistency) * this.sprites[i].alpha;
+            this.sprites[i].alpha = (1 - 5 * 1 / this.persistency) * this.sprites[i].alpha;
         }
     }
 }
@@ -72,10 +75,10 @@ class CRT {
     constructor(app)
     {
         this.range_rings = 5;
-        this.max_noise_density = 5000;
+        this.max_noise_density = 50;
         this.max_noise_level = 1;
         this.fastPersistency = 40;
-        this.slowPersistency = 120;
+        this.slowPersistency = 300;
 
         this.state = 1;
         this.range = 5;
@@ -91,7 +94,7 @@ class CRT {
         this.seaDepth = 2; 
         this.sonarDepth = 0;
         this.rangeSwitch = 0;
-
+        
         this.surfaceReflectivity = 0.7;
         this.bottomReflectivity = 0.5;
         this.layerReflectivity = 0.7;
@@ -109,9 +112,6 @@ class CRT {
         this.container.addChild(this.rangeRings);
         this.container.addChild(this.angleTicks);
 
-        this.blurFilter = new PIXI.filters.BlurFilter();
-        this.blurFilter.blur = 4;
-
         this.slowRenderer = new CRTFadeRenderer(this.slowPersistency);
         this.fastRenderer = new CRTFadeRenderer(this.fastPersistency);
 
@@ -120,6 +120,13 @@ class CRT {
         this.contacts = [[2.5, 90, 8]];
 
         this.setupAngleTexts();
+
+        this.ping = PIXI.sound.Sound.from('sounds/ping_med.mp3');
+
+        this.timer = 0;
+
+        this.currentR = 0;
+        
     }
 
     update(size)
@@ -127,6 +134,9 @@ class CRT {
         this.container.x = 452.0 / 1024.0 * size;
         this.container.y = 310.0 / 1024.0 * size;
         this.radius = 422.0 / 2.0 * size / 1024.0;
+
+        this.slowRenderer.update(this.container.x, this.container.y)
+        this.fastRenderer.update(this.container.x, this.container.y)
     }
 
     setCursorIntensity(value) {this.cursorIntensity = value;};
@@ -152,7 +162,6 @@ class CRT {
         this.range = ranges[value];
     };
 
-    getPingInterval(){return this.frequency;}
     getCursorPosition(){return this.cursorPosition}
     getCursorRange(){return this.range * this.cursorRange * 1000;}
 
@@ -192,44 +201,21 @@ class CRT {
         }
     }
 
-    //// Draw range rings
-    //drawRangeRings(radius)
-    //{
-    //    this.rangeRings.clear();
-    //    this.rangeRings.lineStyle(2, 0xf0d997, 1);
-    //    for (let i = 0; i < this.range_rings; i++)
-    //    {
-    //        this.rangeRings.drawCircle(0, 0, this.radius / this.range_rings * i);
-    //    }
-    //}
-//
-
-    drawNoise()
+    drawNoise(currentR)
     {
-        let graphics = new PIXI.Graphics();
-
+        let graphics = this.slowRenderer.getSharpGraphics();
         let noise_level = this.max_noise_level * this.videoGain * this.crtIntensity;
         let noise_density = this.max_noise_density * this.videoGain;
-        for (let i = 0; i < noise_density ; i++)
+        graphics.beginFill(0xf0d997, currentR / this.range * noise_level * Math.random());
+        graphics.lineStyle(0x000000, 0);
+        let n = randomNormal(currentR, this.seaDepth, 0.2);
+        for (let i = 0; i < noise_density * n ; i++)
         {
             let angle = Math.random() * 2 * Math.PI;
-            let r = randomSkewNormal(Math.random, this.seaDepth / this.range, 0.2, 4);
-            r = Math.max(0, r);
-            r = Math.min(1, r);
-            let R = r * this.radius;
-            if (r < 1)
-            {
-                graphics.beginFill(0xf0d997, r * noise_level * Math.random());
-                graphics.lineStyle(0x000000, 0);
-                graphics.drawCircle(R * Math.cos(angle), R * Math.sin(angle), Math.random() + 1);
-                graphics.endFill()
-            }
+            let R = currentR / this.range * this.radius;
+            graphics.drawCircle(R * Math.cos(angle), R * Math.sin(angle), Math.random() + 1);
         }
-
-        graphics.lineStyle(1, 0x000000, 0);
-        graphics.drawCircle(0, 0, this.radius);
-
-        return graphics;
+        graphics.endFill();
     }
 
     drawReturn(range, angle, intensity, sharpGraphics, blurGraphics)
@@ -237,6 +223,7 @@ class CRT {
         let r = range / 20;
         let R = range / this.range * this.radius;
         let scaledIntensity = 0.005 * intensity * Math.pow(1 / r, 2);
+        this.ping.play({volume: 0.005 * scaledIntensity * this.audioGain});
         if (R < this.radius)
         {
             let dAngleMax = 0.025 / r + 0.01 * intensity;
@@ -261,30 +248,20 @@ class CRT {
         }
     }
 
-    drawReturns()
+    drawReturns(returns, oldR, currentR)
     {
-        let sharpGraphics = new PIXI.Graphics();
-        let blurGraphics = new PIXI.Graphics();
-        blurGraphics.filters = [this.blurFilter];
+        let sharpGraphics = this.slowRenderer.getSharpGraphics();
+        let blurGraphics = this.slowRenderer.getBlurGraphics();
 
-        for (let i = 0; i < this.contacts.length; i++)
+        for (let i = 0; i < returns.length; i++)
         {
-            let range = this.contacts[i][0];
-            let angle = (this.contacts[i][1] - 90) / 180 * Math.PI;
-            let intensity = this.contacts[i][2];
-            let depth = this.contacts[i][3];
-
-            this.drawReturn(range, angle, intensity, sharpGraphics, blurGraphics);
-
-            if (this.sonarDepth > this.layerDepth && depth > this.layerDepth)
+            let range = returns[i][0];
+            if (currentR > range && range > oldR)
             {
-                let topBounceRange = Math.sqrt(Math.pow(this.sonarDepth + depth, 2) + Math.pow(range, 2)); 
-                this.drawReturn(topBounceRange, angle, this.surfaceReflectivity * intensity, sharpGraphics, blurGraphics);
-//
-                let bottomBounceRange = Math.sqrt(Math.pow(2 * this.seaDepth - (this.sonarDepth + depth), 2) + Math.pow(range, 2));
-                this.drawReturn(bottomBounceRange, angle, this.bottomReflectivity  * intensity, sharpGraphics, blurGraphics);
+                let angle = (returns[i][1] - 90) / 180 * Math.PI;
+                let intensity = returns[i][2];
+                this.drawReturn(range, angle, intensity, sharpGraphics, blurGraphics);
             }
-
         }
 
         sharpGraphics.lineStyle(1, 0x000000, 0);
@@ -292,15 +269,12 @@ class CRT {
 
         blurGraphics.lineStyle(1, 0x000000, 0);
         blurGraphics.drawCircle(0, 0, this.radius);
-
-        return [sharpGraphics, blurGraphics];
     }
 
     drawCursor()
     {
-        let sharpGraphics = new PIXI.Graphics();
-        let blurGraphics = new PIXI.Graphics();
-        blurGraphics.filters = [this.blurFilter];
+        let sharpGraphics = this.fastRenderer.getSharpGraphics();
+        let blurGraphics = this.fastRenderer.getBlurGraphics();
 
         blurGraphics.lineStyle(3, 0xffce00, 0.3 * this.cursorIntensity);
         blurGraphics.drawCircle(this.radius * this.cursorRange * Math.sin(this.cursorPosition), -this.radius * this.cursorRange * Math.cos(this.cursorPosition), this.radius * 0.05);
@@ -316,46 +290,70 @@ class CRT {
 
         blurGraphics.lineStyle(1, 0x000000, 0);
         blurGraphics.drawCircle(0, 0, this.radius);
-
-        return [sharpGraphics, blurGraphics];
     }
 
     // Draw returns
-    draw(timer) 
+    draw(delta) 
     {
+        this.slowRenderer.clear();
+        this.fastRenderer.clear();
+
+        this.timer += delta;
+        let c = 1.09361 * 1480;
+        let pingInterval = this.range * 1000 / c;
+        if (this.timer > pingInterval) this.timer = 0;
+
         if (!this.state) return;
 
         this.cursorRange += 0.01 * this.rangeSwitch;
         this.cursorRange = Math.max(0, Math.min(1, this.cursorRange));
 
-        if (timer == 0)
-        {
-            let noise = this.drawNoise();
-            this.slowRenderer.render(noise);
-            noise.destroy();
-            noise = null;
+        let oldR = this.currentR;
+        this.currentR = this.range * this.timer / pingInterval;
+        
+        this.drawNoise(this.currentR);
 
-            let returnGraphics = this.drawReturns();   
-            this.slowRenderer.render(returnGraphics[0]);
-            this.slowRenderer.render(returnGraphics[1]);
-            returnGraphics[0].destroy();
-            returnGraphics[1].destroy();   
-            returnGraphics = null;
+        let returns = [];
+        for (let i = 0; i < this.contacts.length; i++)
+        {
+            let range = this.contacts[i][0];
+            let depth = this.contacts[i][3];
+            let topBounceRange = Math.sqrt(Math.pow(this.sonarDepth + depth, 2) + Math.pow(range, 2)); 
+            let bottomBounceRange = Math.sqrt(Math.pow(2 * this.seaDepth - (this.sonarDepth + depth), 2) + Math.pow(range, 2));
+            returns.push([this.contacts[i][0], this.contacts[i][1], this.contacts[i][2]]);
+            returns.push([topBounceRange, this.contacts[i][1], this.surfaceReflectivity * this.contacts[i][2]]);
+            returns.push([bottomBounceRange, this.contacts[i][1], this.bottomReflectivity  * this.contacts[i][2]]);
+        }      
+
+        let requestRender = false;
+        for (let i = 0; i < returns.length; i++)
+        {
+            let range = returns[i][0];
+            if (this.currentR > range && range > oldR)
+            {
+                requestRender = true;
+                break;
+            }
         }
 
-        let cursorGraphics = this.drawCursor();   
-        this.fastRenderer.render(cursorGraphics[0]);
-        this.fastRenderer.render(cursorGraphics[1]);
-        cursorGraphics[0].destroy();
-        cursorGraphics[1].destroy(); 
-        cursorGraphics = null;
+        if (requestRender)
+        {
+            this.drawReturns(returns, oldR, this.currentR);   
+        }
+        
+        if (this.timer == 0)
+        {
+            this.ping.play({volume: 0.1 * this.audioGain});
+        }
+
+        this.drawCursor();   
+
+        this.slowRenderer.render();
+        this.fastRenderer.render();
     }
 
     fade()
     {
-        this.slowRenderer.update(this.container.x, this.container.y)
-        this.fastRenderer.update(this.container.x, this.container.y)
-
         this.slowRenderer.fade();
         this.fastRenderer.fade();
     }

@@ -27,7 +27,7 @@ class sevenSegment
                 this.sharpTexts.push(text);
             }
             {
-                let text = new PIXI.Text('0', {fontFamily : '7Segments', fontSize: 25, fill : 0xFFFFFF, align : 'center', padding: 10});
+                let text = new PIXI.Text('0', {fontFamily : '7Segments', fontSize: 25, fill : 0xFFFFFF, align : 'center', padding: 8});
                 text.x = (i - 1) * this.spacing;
                 text.alpha = 0.8;
                 this.sharpContainer.addChild(text);
@@ -59,7 +59,9 @@ class sevenSegment
         let rounded = Math.floor(value);
         for (var i = 0; i < this.digits; i++)
         {
+            this.sharpTexts[i].text = "";
             this.sharpTexts[i].text = rounded.toString().padStart(this.digits, '0')[i];
+            this.blurTexts[i].text = "";
             this.blurTexts[i].text = rounded.toString().padStart(this.digits, '0')[i];
         }
 
